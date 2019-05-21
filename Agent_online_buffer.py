@@ -79,6 +79,7 @@ class Agent:
         self.save_weight_path = os.path.join(os.path.join(os.getcwd(), "weights"), "Agent_" + str(self.id))
         self.debug_path = os.path.join(os.path.join(os.getcwd(), "debug"), "Agent_" + str(self.id),
                                        str(time.strftime("%Y%m%d-%H%M%S")))
+
         self.test_mode = True if test_mode == "True" else False
 
         if self.test_mode:
