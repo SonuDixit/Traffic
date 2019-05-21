@@ -75,6 +75,7 @@ def performance_eval(Vissim,delay_stop_tot,speed_avg,trav_tm_tot,stops_tot,
     # plot(x_axis, trav_tm_tot, xlabel="time", ylabel="trav_tot_time",
     #      path_to_save=path_to_save_eval_plot, name="trav_tot_time", t=x_axis[-1])
 
+
 if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
     parser.add_argument('-lw', '--load_weight', help='want to load pre-trained weights',default="False", required=False)

@@ -2,6 +2,7 @@ import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense
 from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.models import load_model
 from tensorflow.keras.optimizers import Adam
 import numpy as np
 import os,time
@@ -76,26 +77,27 @@ class Shared_actor_critic:
         #     advantage_array = self.cal_discounted_rew_exp(advantage_array, disc_factor=self.advantage_discount)
         #     return advantage_array
 
-    def ppo_fit_exp_online(self, state_array, action_array, val_array, next_st_arr, done=False, lr_critic=0.0001, lr_actor=0.0001):
-        # assert rew_array.ndim == 1
+    def critic_fit(self,state_array,val_array):
+        self.state_array = state_array
+        critic_history = self.critic.fit(self.state_array, val_array,
+                                         epochs=1, batch_size=16,
+                                         shuffle=True)
+        return critic_history.history["loss"]
+
+    def actor_ppo_fit_online(self, state_array, action_array, val_array, next_st_arr, done=False, lr_critic=0.0001, lr_actor=0.0001):
         self.state_array = state_array
         self.action_array = action_array
-        # rew_array_for_critic = self.cal_discounted_rew_exp(rew_array, next_st_arr)
         self.advantage = val_array - self.critic.predict(self.state_array)
 
-        critic_history = self.critic.fit(self.state_array, val_array,
-                                         epochs=1, batch_size=32,
-                                         shuffle=True)
-
-
-        # print("action_array shape is",self.action_array.shape)
-        # self.Actor.compile(loss=self.ppo_loss, optimizer=opt2)
         dummy_advantage = np.zeros((self.state_array.shape[0],))
         dummy_pred = np.zeros(self.action_array.shape)
         old_pred = self.old_actor.predict([self.state_array,dummy_advantage, dummy_pred])
-        act_history = self.Actor.fit([self.state_array,self.advantage,old_pred], [self.action_array], epochs=1, batch_size=1, shuffle=True)
-        # self.old_actor.set_weights(self.Actor.get_weights())
-        return critic_history.history["loss"], act_history.history["loss"]
+
+        act_history = self.Actor.fit([self.state_array,self.advantage,old_pred], [self.action_array],
+                                     epochs=1,
+                                     batch_size=16, shuffle=True)
+        # self.old_actor.set_weights(self.Actor.get_weights()) ### is being set from agent file
+        return act_history.history["loss"]
 
     def ppo_fit_exp(self, state_array, action_array, rew_array, next_st_arr, done=False, lr_critic=0.0001, lr_actor=0.0001):
         # assert rew_array.ndim == 1
@@ -152,46 +154,46 @@ class Shared_actor_critic:
             os.makedirs(actor_path)
         if not os.path.exists(critic_path):
             os.makedirs(critic_path)
-        self.Actor.save_weights(os.path.join(actor_path, "actor.h5"))
-        self.critic.save_weights(os.path.join(critic_path, "critic.h5"))
+        self.Actor.save(os.path.join(actor_path, "actor.h5"))  ## save full model in hdf5 file
+        self.critic.save(os.path.join(critic_path, "critic.h5")) ## save full model
         print("weights saved")
 
-    def load_weights(self, path):
+    def load_saved_model(self, path):
         actor_path = os.path.join(path, "actor")
         critic_path = os.path.join(path, "critic")
         if not os.path.exists(actor_path):
             print("actor weight_file_doesn't exist, cant load")
         else:
-            self.Actor.load_weights(os.path.join(actor_path, "actor.h5"))
-            print("actor weights restored")
+            try:
+                self.Actor = load_model(os.path.join(actor_path, "actor.h5")) ## fails bacause of custom loss function
+                print("actor model restored")
+            except:
+                self.Actor.load_weights(os.path.join(actor_path, "actor.h5"))
+                print("actor weights loaded")
+            self.Actor.summary()
+            self.old_actor.set_weights(self.Actor.get_weights())
+            print("old_actor weights equal to Actor")
 
         if not os.path.exists(critic_path):
             print("critic weight file does not exist")
         else:
-            self.critic.load_weights(os.path.join(critic_path, "critic.h5"))
-            print("critic weights restored")
+            try :
+                self.critic = load_model(os.path.join(critic_path, "critic.h5")) ## fails bacause of custom loss function
+                print("Critic model restored")
+            except :
+                self.critic.load_weights(os.path.join(critic_path, "critic.h5"))
+                print("critic weights loaded")
+            self.critic.summary()
 
 
 if __name__ == "__main__":
-    A_C_net = Shared_actor_critic(state_size= 4, action_size= 3)
-    state_data =np.random.normal(1,2,(5,4))
-    rew_arr = np.random.normal(1,0,(5,))
-    act_arr = np.asarray([1,2,1,0,1])
     next_st = np.array([1,2,3,4])
-    A_C_net.ppo_fit(state_data,act_arr,rew_arr,next_st)
-
-    # t = A_C_net.actor_predict(state_data)
-
-    # print("returned_values are:\n",t)
-    # print("shape of t is: ", t.shape)
+    # A_C_net.ppo_fit(state_data,act_arr,rew_arr,next_st)
 
     """
     checked
     passing zeros is a bad choice
     """
-    # print("now with zeros:\n")
-    # in_data2 = np.zeros(in_data.shape)
-    # in_data2[3,:] = in_data[3,:]
     # print("returned vals are",A_C_net.actor_predict(in_data2))
     '''A_C_net = Shared_actor_critic(10, 5, 4)
     x = np.asarray([1, 2, 3])

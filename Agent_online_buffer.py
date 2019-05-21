@@ -1,7 +1,6 @@
 import win32com.client as com
 import os
 from ac_net_updated_exp import Shared_actor_critic as Actor_Critic_model
-
 from helper_fns import get_neighbors, get_occupancy
 import numpy as np
 from collections import deque
@@ -31,9 +30,10 @@ class Buffer:
         indexes = np.random.randint(self.max_size,size=batch_size)
         return self.states[indexes,:],self.actions[indexes,:],self.rews[indexes,:], self.next_states[indexes, :]
 
-    def sample_on_policy(self, batch_size=16):
-        #         indexes = np.random.randint(self.max_size,size=batch_size)
-        self.preprocess_on_policy()
+    def sample_on_policy(self, batch_size=16, all = False):
+        if all :
+            indexes = [i for i in range(self.pointer)]
+            return self.states[indexes, :], self.actions[indexes, :], self.rews[indexes, :], self.next_states[indexes, :]
         indexes = np.random.randint(self.pointer, size=batch_size)
         return self.states[indexes, :], self.actions[indexes, :], self.rews[indexes, :], self.next_states[indexes, :]
 
@@ -66,36 +66,29 @@ class Agent:
         self.action_count = [0 for x in range(0, len(self.actions))]
         self.neighbors = get_neighbors(id, self.simulation)
         self.num_actions_taken = 1  # change this initialization to 0, update it in act method
-        self.epislon = 0.99
-        self.discount_factor = 0.90
+        # self.epislon = 0.99
+        # self.discount_factor = 0.90
         self.Actor_Critic = Actor_Critic_model(state_size=self.state_size,
                                                action_size=self.action_size,
                                                seq_len=self.seq_length,
                                                h1=5)
         self.exp_replay = Buffer(state_dim=self.state_size, action_dim=self.action_size,max_size=100)
-        # self.states_queue = deque(
-        #     [np.random.uniform(low=0.0, high=2.0, size=(self.state_size,)) for _ in range(self.seq_length)])
-        # print(self.states_queue)
-        ## this is to maintain states of this agent, to be used as queue
         self.rewards = []  ## this is used to plot time vs reward
         self.next_signal_change_time = 0
         self.action_que = deque(list(np.random.randint(0, self.action_size, self.seq_length)))
-        # self.action_que.append(initial_action)
-        # self.reward_queue = deque([0 for _ in range(self.seq_length - 1)])
-        # self.modified_reward_queue = deque([0 for _ in range(self.seq_length - 1)])  ## for difference
         self.save_weight_path = os.path.join(os.path.join(os.getcwd(), "weights"), "Agent_" + str(self.id))
         self.debug_path = os.path.join(os.path.join(os.getcwd(), "debug"), "Agent_" + str(self.id),
                                        str(time.strftime("%Y%m%d-%H%M%S")))
         self.test_mode = True if test_mode == "True" else False
 
         if self.test_mode:
-            self.Actor_Critic.load_weights(self.save_weight_path)
-            self.epislon = 0.05
+            self.Actor_Critic.load_saved_model(self.save_weight_path)
+            # self.epislon = 0.05
             print("Agent " + str(self.id) + " in **TEST** mode")
 
         elif weight_load:
-            print("loading weight for ", self.id)
-            self.Actor_Critic.load_weights(self.save_weight_path)
+            print("loading previous saved models for ", self.id)
+            self.Actor_Critic.load_saved_model(self.save_weight_path)
 
         self.cric_loss_list = []
         self.ac_loss_list = []
@@ -167,13 +160,16 @@ class Agent:
             # checking episode is complete or not
             ###training of model is supposed to be done here
             if self.num_actions_taken_policy > self.min_actions:
+                self.exp_replay.preprocess_on_policy()  ### convert reward to value
                 for _ in range(3):
                     s,a,r,next = self.exp_replay.sample_on_policy()
-                    cr_loss, ac_loss = self.Actor_Critic.ppo_fit_exp_online(s, a, r, next)
-
-                    self.cric_loss_list.append(cr_loss)
+                    ac_loss = self.Actor_Critic.actor_ppo_fit_online(s, a, r, next)
                     self.ac_loss_list.append(ac_loss)
-                    print(str(self.id) + " trained")
+
+                s, a, r, next = self.exp_replay.sample_on_policy(all=True)
+                cric_loss = self.Actor_Critic.critic_fit(s,r)
+                self.cric_loss_list.append(cric_loss)
+                print(str(self.id) + " trained")
 
                 self.Actor_Critic.old_actor.set_weights(self.Actor_Critic.Actor.get_weights())
                 self.exp_replay = Buffer(state_dim=self.state_size, action_dim=self.action_size,max_size=100)
@@ -191,20 +187,20 @@ class Agent:
             if self.num_actions_taken % 25 == 0:
                 self.plot_and_save_data()
 
-    def update_epislon(self):
-        ### update epislon, linear any decay
-        ## it needs number of action steps taken till now
-        #        self.num_actions_taken
-        #        self.epislon = 0.8 ##update epislon using number of actions taken till now from this state
-        if self.num_actions_taken < 375:
-            if self.num_actions_taken % 10 == 0:
-                self.epislon = self.epislon * np.exp(-self.num_actions_taken / 6000)
-        elif self.num_actions_taken < 1100:
-            self.epislon = 0.22
-        elif self.num_actions_taken < 1500:
-            self.epislon = 0.16
-        else:
-            self.epislon = 0.12
+    # def update_epislon(self):
+    #     ### update epislon, linear any decay
+    #     ## it needs number of action steps taken till now
+    #     #        self.num_actions_taken
+    #     #        self.epislon = 0.8 ##update epislon using number of actions taken till now from this state
+    #     if self.num_actions_taken < 375:
+    #         if self.num_actions_taken % 10 == 0:
+    #             self.epislon = self.epislon * np.exp(-self.num_actions_taken / 6000)
+    #     elif self.num_actions_taken < 1100:
+    #         self.epislon = 0.22
+    #     elif self.num_actions_taken < 1500:
+    #         self.epislon = 0.16
+    #     else:
+    #         self.epislon = 0.12
 
     def plot_and_save_data(self):
         """
