@@ -15,14 +15,16 @@ def proximal_policy_optimization_loss(advantage, old_prediction):
         return -K.mean(K.minimum(r * advantage, K.clip(r, min_value=1 - LOSS_CLIPPING, max_value=1 + LOSS_CLIPPING) * advantage) + ENTROPY_LOSS * (-prob * K.log(prob + 1e-10)))
     return loss
 
-def actor_critic_loss(advantage):
+def actor_critic_loss(value):
     ENTROPY_LOSS = 1e-3
     def loss(y_true,y_pred):
         prob = y_true * y_pred
-        return -K.mean(K.log(prob + 1e-10) * y_true * advantage + ENTROPY_LOSS * (-prob * K.log(prob + 1e-10)))
+        return -K.mean(K.log(prob + 1e-10) * y_true * value + ENTROPY_LOSS * (-prob * K.log(prob + 1e-10)))
     return loss
 
 def proximal_policy_optimization_loss_continuous(advantage, old_prediction):
+    LOSS_CLIPPING = 0.2
+    NOISE = 0.4
     def loss(y_true, y_pred):
         var = K.square(NOISE)
         pi = 3.1415926
