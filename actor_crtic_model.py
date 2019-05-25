@@ -137,7 +137,7 @@ class ppo_advantage_actor_critic(advantage_actor_critic):
         super().__init__(state_size, action_size)
         self.Actor = self.build_actor()
         self.old_actor = self.build_actor()
-        self.old_actor.set_weights(self.actor.get_weights())
+        self.old_actor.set_weights(self.Actor.get_weights())
 
     def build_actor(self):
         HIDDEN_SIZE = 64
