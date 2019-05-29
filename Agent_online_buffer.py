@@ -37,7 +37,8 @@ class Buffer:
         indexes = np.random.randint(self.pointer, size=batch_size)
         return self.states[indexes, :], self.actions[indexes, :], self.rews[indexes, :], self.next_states[indexes, :]
 
-    def preprocess_on_policy(self, disc=0.98):
+    def preprocess_on_policy(self,val_next_state, disc=0.98):
+        self.rews[self.pointer-1] += disc * val_next_state
         for i in range(self.pointer - 2, -1, -1):
             self.rews[i] += disc * self.rews[i + 1]
 
@@ -50,9 +51,7 @@ class Agent:
                  current_phase=0,
                  distance_from_neighbors=False):
         # id is the sc_id
-        # initial_action is input from simulation training file, NOT REQUIRED
         self.simulation = sim_object
-        # self.Env = Env()
         self.id = id
         self.state_size = state_size
         if id in [2, 4]:
@@ -60,7 +59,6 @@ class Agent:
         self.action_size = action_size
         self.num_signal = num_signal  # number of lanes, number of signals at the junction
         self.seq_length = 10  # atleast 2, for reward calculation to work properly #seq_length #not required for non_recurrent model
-        ####build model using state_size and action_size
         self.current_phase = current_phase  ###being changed and set from main file itself.
         self.actions = [x for x in range(20, 71, 5)]
         self.action_count = [0 for x in range(0, len(self.actions))]
@@ -70,8 +68,7 @@ class Agent:
         # self.discount_factor = 0.90
         self.Actor_Critic = Actor_Critic_model(state_size=self.state_size,
                                                action_size=self.action_size,
-                                               seq_len=self.seq_length,
-                                               h1=5)
+                                               )
         self.exp_replay = Buffer(state_dim=self.state_size, action_dim=self.action_size,max_size=100)
         self.rewards = []  ## this is used to plot time vs reward
         self.next_signal_change_time = 0
@@ -94,8 +91,8 @@ class Agent:
         self.cric_loss_list = []
         self.ac_loss_list = []
         self.prev_cost = 0
-        self.min_actions = 48
-        self.num_actions_taken_policy = 1
+        self.min_actions = 64
+        self.num_actions_taken_policy = 1 ## action count according to current policy
 
     def get_neighbors_occupancy(self, sim_time):
         neighbors_occupancy = []
@@ -161,8 +158,10 @@ class Agent:
             # checking episode is complete or not
             ###training of model is supposed to be done here
             if self.num_actions_taken_policy > self.min_actions:
-                self.exp_replay.preprocess_on_policy()  ### convert reward to value
-                for _ in range(3):
+                # convert reward to value in buffer
+                # its not a episodic task, so next state value is not zero
+                self.exp_replay.preprocess_on_policy(val_next_state=self.Actor_Critic.critic.predict(self.next_st))
+                for _ in range(4):
                     s,a,r,next = self.exp_replay.sample_on_policy()
                     ac_loss = self.Actor_Critic.actor_ppo_fit_online(s, a, r, next)
                     self.ac_loss_list.append(ac_loss)
@@ -177,7 +176,6 @@ class Agent:
                 self.num_actions_taken_policy = 0
 
         self.next_signal_change_time = self.select_action(sim_time=sim_time)  # returns index, this var is being used in main file
-
         self.action_que.append(self.next_signal_change_time)
         self.action_que.popleft()
 
