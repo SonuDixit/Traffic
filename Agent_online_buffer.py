@@ -160,7 +160,7 @@ class Agent:
             if self.num_actions_taken_policy > self.min_actions:
                 # convert reward to value in buffer
                 # its not a episodic task, so next state value is not zero
-                self.exp_replay.preprocess_on_policy(val_next_state=self.Actor_Critic.critic.predict(self.next_st))
+                self.exp_replay.preprocess_on_policy(val_next_state=self.Actor_Critic.critic.predict(self.next_st.reshape(1,self.state_size)))
                 for _ in range(4):
                     s,a,r,next = self.exp_replay.sample_on_policy()
                     ac_loss = self.Actor_Critic.actor_ppo_fit_online(s, a, r, next)
