@@ -98,9 +98,10 @@ def write_to_file_for_analysis(id, time, vissim_object, action_taken,fst_time):
 if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-time', '--fst_time', help='time for fst',type=int,default=20, required=False)
-    parser.add_argument('-sim_seed', '--sim_seed', type=int, help='simulation random seed', default=15, required=False)
-    parser.add_argument('--rand_seed', type=int, help='random_seed_for_input_change', default=7, required=False)
+    parser.add_argument('-total_time', type=int, help='total_run_time', default=100000, required=False)
+    parser.add_argument('-sim_seed', type=int, help='simulation random seed', default=15, required=False)
+    parser.add_argument('-rand_seed', type=int, help='random_seed_for_input_change', default=7, required=False)
+    parser.add_argument('-fst_time', help='time for fst',type=int,default=20, required=False)
 
     args = vars(parser.parse_args())  ####args is now a dictionary
     fst_time = int(args['fst_time'])
@@ -110,6 +111,7 @@ if __name__ == "__main__" :
     Vissim = load_network(NetFileInpx="C:\\Users\\vissim\\Desktop\\trial_vissim-net\\6jun_4may.inpx",
                           LayoutFileLayx="C:\\Users\\vissim\\Desktop\\trial_vissim-net\\6jun_4may.layx")
     print("vissim random seed:", args['sim_seed'])
+
     Vissim.Simulation.SetAttValue("RandSeed",int(args['sim_seed']))
     # Activate QuickMode:
     Vissim.Graphics.CurrentNetworkWindow.SetAttValue("QuickMode", 1)
@@ -137,7 +139,8 @@ if __name__ == "__main__" :
     stops_avg = []
     x_axis = []
 
-    total_time = 100000
+    total_time = int(args['total_time'])
+
     for i in range(total_time):
         Vissim.Simulation.RunSingleStep()
         sim_time = Vissim.Simulation.SimulationSecond

@@ -5,7 +5,7 @@ import tensorflow.keras.backend as K
 
 def proximal_policy_optimization_loss(advantage, old_prediction):
     LOSS_CLIPPING = 0.2
-    ENTROPY_LOSS = 2e-1
+    ENTROPY_LOSS = 2e-3
     # print("shape of advantage ", K.int_shape(advantage))
     def loss(y_true, y_pred):
         prob = y_true * y_pred

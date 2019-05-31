@@ -216,14 +216,5 @@ class ppo_advantage_actor_critic(advantage_actor_critic):
 
 
 if __name__ == "__main__":
-    next_st = np.array([1,2,3,4])
-    # A_C_net.ppo_fit(state_data,act_arr,rew_arr,next_st)
-
-    """
-    checked
-    passing zeros is a bad choice
-    """
-    # print("returned vals are",A_C_net.actor_predict(in_data2))
-    '''A_C_net = Shared_actor_critic(10, 5, 4)
-    x = np.asarray([1, 2, 3])
-    print(A_C_net.cal_discounted_rew(x))'''
+    ac = ppo_advantage_actor_critic(5,4)
+    print("h")

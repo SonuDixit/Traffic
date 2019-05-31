@@ -10,7 +10,7 @@ from loss import proximal_policy_optimization_loss
 import copy
 
 class Shared_actor_critic:
-    def __init__(self, state_size=11, action_size=20, seq_len=15, h1=32, h2=16):
+    def __init__(self, state_size=11, action_size=20):
         self.state_size = state_size
         self.action_size = action_size
         # self.seq_len = seq_len
@@ -78,13 +78,12 @@ class Shared_actor_critic:
         #     return advantage_array
 
     def critic_fit(self,state_array,val_array):
-        self.state_array = state_array
-        critic_history = self.critic.fit(self.state_array, val_array,
-                                         epochs=1, batch_size=16,
+        critic_history = self.critic.fit(state_array, val_array,
+                                         epochs=1, batch_size=state_array.shape[0]//4,
                                          shuffle=True)
         return critic_history.history["loss"]
 
-    def actor_ppo_fit_online(self, state_array, action_array, val_array, next_st_arr, done=False, lr_critic=0.0001, lr_actor=0.0001):
+    def actor_ppo_fit_online(self, state_array, action_array, val_array):
         self.state_array = state_array
         self.action_array = action_array
         self.advantage = val_array - self.critic.predict(self.state_array)
@@ -95,35 +94,35 @@ class Shared_actor_critic:
 
         act_history = self.Actor.fit([self.state_array,self.advantage,old_pred], [self.action_array],
                                      epochs=1,
-                                     batch_size=16, shuffle=True)
+                                     batch_size=self.state_array.shape[0], shuffle=True)
         # self.old_actor.set_weights(self.Actor.get_weights()) ### is being set from agent file
         return act_history.history["loss"]
 
-    def ppo_fit_exp(self, state_array, action_array, rew_array, next_st_arr, done=False, lr_critic=0.0001, lr_actor=0.0001):
-        # assert rew_array.ndim == 1
-        self.state_array = state_array
-        self.action_array = action_array
-        rew_array_for_critic = self.cal_discounted_rew_exp(rew_array, next_st_arr)
-        #         if self.cr_lr != lr_critic:
-        #             self.cr_lr = lr_critic
-        #             opt = tf.train.AdamOptimizer(learning_rate=self.cr_lr)
-        #             self.critic.compile(loss='mse', optimizer=opt)
-        critic_history = self.critic.fit(self.state_array, rew_array_for_critic,
-                                         epochs=1, batch_size=32,
-                                         shuffle=True)
-
-        self.advantage = self.cal_advantage(rew_array_for_critic, self.state_array)
-        # opt2 = tf.train.AdamOptimizer(learning_rate=lr_actor)
-        # old_weights = self.old_actor.get_weights()
-        # copy_weights = self.Actor.get_weights()
-        print("action_array shape is",self.action_array.shape)
-        # self.Actor.compile(loss=self.ppo_loss, optimizer=opt2)
-        dummy_advantage = np.zeros((self.state_array.shape[0],))
-        dummy_pred = np.zeros(self.action_array.shape)
-        old_pred = self.old_actor.predict([self.state_array,dummy_advantage, dummy_pred])
-        act_history = self.Actor.fit([self.state_array,self.advantage,old_pred], [self.action_array], epochs=1, batch_size=1, shuffle=True)
-        self.old_actor.set_weights(self.Actor.get_weights())
-        return critic_history.history["loss"], act_history.history["loss"]
+    # def ppo_fit_exp(self, state_array, action_array, rew_array, next_st_arr, done=False, lr_critic=0.0001, lr_actor=0.0001):
+    #     # assert rew_array.ndim == 1
+    #     self.state_array = state_array
+    #     self.action_array = action_array
+    #     rew_array_for_critic = self.cal_discounted_rew_exp(rew_array, next_st_arr)
+    #     #         if self.cr_lr != lr_critic:
+    #     #             self.cr_lr = lr_critic
+    #     #             opt = tf.train.AdamOptimizer(learning_rate=self.cr_lr)
+    #     #             self.critic.compile(loss='mse', optimizer=opt)
+    #     critic_history = self.critic.fit(self.state_array, rew_array_for_critic,
+    #                                      epochs=1, batch_size=32,
+    #                                      shuffle=True)
+    #
+    #     self.advantage = self.cal_advantage(rew_array_for_critic, self.state_array)
+    #     # opt2 = tf.train.AdamOptimizer(learning_rate=lr_actor)
+    #     # old_weights = self.old_actor.get_weights()
+    #     # copy_weights = self.Actor.get_weights()
+    #     print("action_array shape is",self.action_array.shape)
+    #     # self.Actor.compile(loss=self.ppo_loss, optimizer=opt2)
+    #     dummy_advantage = np.zeros((self.state_array.shape[0],))
+    #     dummy_pred = np.zeros(self.action_array.shape)
+    #     old_pred = self.old_actor.predict([self.state_array,dummy_advantage, dummy_pred])
+    #     act_history = self.Actor.fit([self.state_array,self.advantage,old_pred], [self.action_array], epochs=1, batch_size=1, shuffle=True)
+    #     self.old_actor.set_weights(self.Actor.get_weights())
+    #     return critic_history.history["loss"], act_history.history["loss"]
 
     def critic_predict_ret_as_list(self, state_array):
         # this fn is used for debugging, visualization

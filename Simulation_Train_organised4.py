@@ -1,4 +1,4 @@
-from Agent_online_buffer import Agent
+from Agent_buffer import Agent
 import numpy as np
 from helper_fns import plot
 # from Env import Env
@@ -6,7 +6,7 @@ from helper_fns import plot,load_network,sc_sg_to_green,clear_previous_written_f
 import os
 import argparse, time
 import random
-# random.seed(7)
+random.seed(10)
 
 def change_vehicle_input_rate(sim_object, time):
     ##change after every 3000 seconds
@@ -75,22 +75,25 @@ def performance_eval(Vissim,delay_stop_tot,speed_avg,trav_tm_tot,stops_tot,
     # plot(x_axis, trav_tm_tot, xlabel="time", ylabel="trav_tot_time",
     #      path_to_save=path_to_save_eval_plot, name="trav_tot_time", t=x_axis[-1])
 
-
 if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
-    parser.add_argument('-lw', help='want to load pre-trained weights',default="True", required=False)
-    parser.add_argument('-Test_mode',  help='test_mode_True or False', default="False", required=False)
-    parser.add_argument('-total_time', type=int, help = 'total_run_time', default = 100000, required=False)
-    parser.add_argument('-sim_seed', type=int, help='simulation random seed', default=52, required=False)
-    parser.add_argument('-rand_seed', type=int, help = 'random_seed_for_input_change', default=71, required= False)
+    parser.add_argument('-lw', '--load_weight', help='want to load pre-trained weights',default="False", required=False)
+    parser.add_argument('-Tst', '--Test_mode',  help='test_mode_True or False', default="False", required=False)
+    parser.add_argument('-tot_time', '--total_time', type=int, help = 'total_run_time', default = 100000, required=False)
+    parser.add_argument('-seed', '--rand_seed', type=int, help='simulation random seed', default=8, required=False)
     args = vars(parser.parse_args())  ####args is now a dictionary
-    w_l = True if args["lw"] == "True" else False
 
-    random.seed(int(args['rand_seed']))
-    Vissim = load_network()  ## default is copy_network
-    vis_r_seed = int(args['sim_seed'])
-    print("vissim random seed:", vis_r_seed)
-    Vissim.Simulation.SetAttValue("RandSeed", vis_r_seed)
+    # print(args["Test_mode"])
+    # print(type(args["load_weight"]))
+    w_l = True if args["load_weight"] == "True" else False
+    # exit()
+
+    # Vissim = load_network()  ## default is copy_network
+    Vissim = load_network(NetFileInpx="C:\\Users\\vissim\\Desktop\\trial_vissim-net\\6jun_4may.inpx",
+                          LayoutFileLayx="C:\\Users\\vissim\\Desktop\\trial_vissim-net\\6jun_4may.layx")
+    r_seed = int(args['rand_seed'])
+    print("vissim random seed:", r_seed)
+    Vissim.Simulation.SetAttValue("RandSeed", r_seed)
     Vissim.Simulation.SetAttValue("SimRes", 1)
     # Activate QuickMode:
     Vissim.Graphics.CurrentNetworkWindow.SetAttValue("QuickMode", 1)
@@ -113,21 +116,17 @@ if __name__ == "__main__" :
               test_mode=args["Test_mode"])
         for i in range(len(signal_ids))]
 
-    ###change here if only a few need to be trained
+    ###for today, want to train only one agent, all others in test mode
     # Agents[0].test_mode = False
-    # Agents[1].test_mode = False
-    # Agents[2].test_mode = False
     # Agents[3].test_mode = False
-    # Agents[4].test_mode = False
-    # Agents[5].test_mode = False
-
     Vissim.Simulation.RunSingleStep()
     actions = [agent.select_action(sim_time=1) * 5 + 20 for agent in Agents] # intial action
     print("initial_action", actions)
     scs = [Vissim.Net.SignalControllers.ItemByKey(i) for i in signal_ids]
     change_time = np.asarray(green_times) + np.asarray(actions)
     total_time = args["total_time"]
-    # check simulation->simulation parameter -> Resolution in vissim
+    # 10 times here is one simulation time.
+    # check simulation->simulation parameter in vissim
     # these are evaluation_parameters
     delay_stop_tot = []
     speed_avg = []
@@ -178,5 +177,4 @@ if __name__ == "__main__" :
             if i%3000 == 0:
                 change_vehicle_input_rate(Vissim,i)
 
-    print("out of for loop, completed training/testing, tot time was", total_time)
-    print("random_seed: ", str(args['rand_seed']),"vissim seed: ", str(args['sim_seed']))
+    print("out of for loop, completed training, tot time was", total_time)

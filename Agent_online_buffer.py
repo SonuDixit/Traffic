@@ -10,7 +10,7 @@ import time
 np.random.seed(seed=123)
 
 class Buffer:
-    def __init__(self,state_dim, action_dim,max_size=500):
+    def __init__(self,state_dim, action_dim,max_size=100):
         self.states = np.zeros((max_size,state_dim))
         self.actions = np.zeros((max_size, action_dim))
         self.rews = np.zeros((max_size,1))
@@ -42,6 +42,24 @@ class Buffer:
             self.rews[i] += disc * self.rews[i + 1]
 
 
+class Buffer_off_ppo(Buffer):
+    ### always keeping 100 recent samples
+    def __init__(self,state_dim, action_dim,max_size=100):
+        super().__init__(state_dim, action_dim,max_size)
+
+    def sample_on_policy(self, batch_size=16, all = False):
+        if all :
+            return self.states, self.actions, self.values, self.next_states
+        indexes = np.random.randint(self.max_size, size=batch_size)
+        return self.states[indexes, :], self.actions[indexes, :], self.values[indexes, :], self.next_states[indexes, :]
+
+    def preprocess_on_policy(self,val_next_state, disc=0.98):
+        self.values = np.copy(self.rews)
+        self.values[self.pointer - 1] += disc * val_next_state
+
+        for i in range(self.pointer - 2,self.pointer - self.max_size - 1, -1): ### circular
+            self.values[i] += disc * self.values[i + 1]
+
 class Agent:
     def __init__(self, sim_object, id, state_size, action_size, num_signal=4,
                  seq_length=10,
@@ -63,12 +81,11 @@ class Agent:
         self.action_count = [0 for x in range(0, len(self.actions))]
         self.neighbors = get_neighbors(id, self.simulation)
         self.num_actions_taken = 1  # change this initialization to 0, update it in act method
-        # self.epislon = 0.99
-        # self.discount_factor = 0.90
         self.Actor_Critic = Actor_Critic_model(state_size=self.state_size,
                                                action_size=self.action_size,
                                                )
-        self.exp_replay = Buffer(state_dim=self.state_size, action_dim=self.action_size,max_size=100)
+        # self.exp_replay = Buffer(state_dim=self.state_size, action_dim=self.action_size,max_size=100)
+        self.exp_replay = Buffer_off_ppo(state_dim=self.state_size, action_dim=self.action_size, max_size=100)
         self.rewards = []  ## this is used to plot time vs reward
         self.next_signal_change_time = 0
         self.action_que = deque(list(np.random.randint(0, self.action_size, self.seq_length)))
@@ -90,7 +107,7 @@ class Agent:
         self.cric_loss_list = []
         self.ac_loss_list = []
         self.prev_cost = 0
-        self.min_actions = 64
+        self.min_actions = 48
         self.num_actions_taken_policy = 1 ## action count according to current policy
 
     def get_neighbors_occupancy(self, sim_time):
@@ -161,8 +178,8 @@ class Agent:
                 # its not a episodic task, so next state value is not zero
                 self.exp_replay.preprocess_on_policy(val_next_state=
                                                      self.Actor_Critic.critic.predict(self.next_st.reshape(1,self.state_size))[0,0])
-                for _ in range(4):
-                    s,a,val,_ = self.exp_replay.sample_on_policy(batch_size=self.min_actions // 4)
+                for _ in range(3):
+                    s,a,val,_ = self.exp_replay.sample_on_policy(batch_size=self.min_actions // 3)
                     ac_loss = self.Actor_Critic.actor_ppo_fit_online(s, a, val)
                     self.ac_loss_list.append(ac_loss)
 
@@ -172,8 +189,8 @@ class Agent:
                 print(str(self.id) + " trained")
 
                 self.Actor_Critic.old_actor.set_weights(self.Actor_Critic.Actor.get_weights())
-                self.exp_replay = Buffer(state_dim=self.state_size, action_dim=self.action_size,max_size=80)
-                self.num_actions_taken_policy = 0
+                # self.exp_replay = Buffer(state_dim=self.state_size, action_dim=self.action_size,max_size=80)
+                self.num_actions_taken_policy = 1
 
         self.next_signal_change_time = self.select_action(sim_time=sim_time)  # returns index, this var is being used in main file
         self.action_que.append(self.next_signal_change_time)
